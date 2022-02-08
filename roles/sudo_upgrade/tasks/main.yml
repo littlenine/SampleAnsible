@@ -1,0 +1,29 @@
+---
+  - name: check sudo version
+    shell: |
+      cut -d' ' -f3 <<< $(sudo --version | head -n 1)
+    become: yes
+    register: current_sudo_version
+  - name: upgrade sudo
+    async: 6000
+    shell: |
+      yum -y update
+    become: yes
+    when: current_sudo_version != "{{ target_sudo_ver }}"
+    register: shell_status
+    changed_when: false
+  - name: Check shell status
+    async_status:
+      jid: "{{ shell_status.ansible_job_id }}"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 3000
+    become: yes
+  - name: get new version
+    shell: |
+      cut -d' ' -f3 <<< $(sudo --version | head -n 1)
+    become: yes
+    register: new_sudo_version
+
+  - fail: msg="incorrect version"
+    when: "{{ new_sudo_version }}" != "{{ target_sudo_ver }}"
